@@ -63,7 +63,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px
 <div class="c" id="login"><h2>Login Admin</h2><label>Kata sandi</label><input type="password" id="pw" placeholder="Kata sandi admin"><div class="row"><button id="lg">Masuk</button></div></div>
 <div id="panel" style="display:none">
 <div class="c"><div class="row" style="margin:0"><button class="s" data-t="d">Daftar Permintaan</button><button class="s" data-t="q">Rekap Permintaan</button><button class="s" data-t="r">Rekap Barang</button><button class="s" data-t="p">Pengaturan</button><button class="s" id="lo">Keluar</button></div></div>
-<div class="c" id="flt"><div class="g"><div><label>Dari tanggal</label><input type="date" id="f1"></div><div><label>Sampai tanggal</label><input type="date" id="f2"></div><div><label>Status pemohon</label><select id="fs"></select></div></div></div>
+<div class="c" id="flt"><div class="g"><div><label>Dari tanggal</label><input type="date" id="f1"></div><div><label>Sampai tanggal</label><input type="date" id="f2"></div><div><label>Status pemohon</label><select id="fs"></select></div><div><label>Nama pemohon</label><select id="fn"></select></div></div></div>
+<div class="row" style="margin:0 0 10px;align-items:center"><span class="mu" id="sts"></span><button class="s" id="rf">↻ Muat Ulang</button></div>
 <div class="c" id="t-d"><h2>Daftar Permintaan</h2><div id="hist"></div>
 <div class="row"><button class="s" id="csv">Ekspor CSV (Excel)</button><button class="s" id="bk">Cadangkan JSON</button><button class="s d" id="clr">Hapus Semua</button></div></div>
 <div class="c" id="t-q" style="display:none"><h2>Rekap Permintaan</h2><div id="kp" class="kps"></div><div id="rq"></div><div class="row"><button class="s" id="csv3">Ekspor Rekap CSV</button><button class="s" id="prt">Cetak</button></div></div>
@@ -108,9 +109,10 @@ var hash=function(s){var h1=0xdeadbeef,h2=0x41c6ce57;for(var i=0;i<s.length;i++)
 var PW='';try{PW=localStorage.getItem('pbhp_pw')||''}catch(e){}if(!PW)PW=hash('admin123');
 var adm=false,KEY='',curT='d',RK=[];
 function view(v){$('n-form').classList.toggle('on',v=='form');$('n-admin').classList.toggle('on',v=='admin');$('v-form').style.display=v=='form'?'':'none';$('v-admin').style.display=v=='admin'?'':'none';$('login').style.display=adm?'none':'';$('panel').style.display=adm?'':'none';if(adm)tab(curT);else{hist();rekap()}}
-function post(o){return fetch(API,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(o)})}
-function sync(){if(!API||!adm||!KEY)return;fetch(API+'?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).then(function(d){if(d.rows){H=d.rows;hist();rekap()}}).catch(function(){})}
-function load(){if(API){sync();return}try{H=JSON.parse(localStorage.getItem('pbhp')||'[]')}catch(e){}}
+function post(o){return fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(o)}).then(function(r){return r.json()})}
+function sts(t){var e=$('sts');if(e)e.textContent=t}
+function sync(){if(!API||!adm||!KEY)return;sts('Memuat data dari server...');fetch(API+'?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).then(function(d){if(d.rows){H=d.rows;hist();rekap();var n=new Date();sts('Terhubung ke Google Sheet · '+H.length+' permintaan · diperbarui '+('0'+n.getHours()).slice(-2)+':'+('0'+n.getMinutes()).slice(-2))}else sts('Server menjawab: '+(d.error||'tidak dikenal'))}).catch(function(){sts('Gagal mengambil data dari server. Periksa internet atau pengaturan deployment.')})}
+function load(){if(API){sync();return}sts('Mode lokal: data hanya tersimpan di browser ini.');try{H=JSON.parse(localStorage.getItem('pbhp')||'[]')}catch(e){}}
 function tab(t){curT=t;load();document.querySelectorAll('[data-t]').forEach(function(b){b.classList.toggle('on',b.dataset.t==t)});['d','q','r','p'].forEach(function(x){$('t-'+x).style.display=x==t?'':'none'});$('flt').style.display=t=='p'?'none':'';hist();rekap()}
 $('n-form').onclick=function(){view('form')};$('n-admin').onclick=function(){view('admin')};
 $('lg').onclick=function(){var v=$('pw').value;if(API){$('lg').disabled=true;fetch(API+'?key='+encodeURIComponent(v)).then(function(r){return r.json()}).then(function(d){$('lg').disabled=false;if(d.rows){H=d.rows;KEY=v;adm=true;$('pw').value='';view('admin')}else alert('Kata sandi salah')}).catch(function(){$('lg').disabled=false;alert('Gagal terhubung ke server. Periksa koneksi internet.')});return}if(hash(v)==PW){adm=true;$('pw').value='';view('admin')}else alert('Kata sandi salah')};
@@ -118,9 +120,11 @@ $('pw').onkeydown=function(e){if(e.key=='Enter')$('lg').click()};
 $('lo').onclick=function(){adm=false;if(API){KEY='';H=[]}view('form')};
 document.querySelectorAll('[data-t]').forEach(function(b){b.onclick=function(){tab(b.dataset.t)}});
 $('fs').innerHTML='<option value="">Semua status</option>'+Object.keys(P).map(function(x){return '<option>'+x+'</option>'}).join('');
-['f1','f2','fs'].forEach(function(i){$(i).onchange=function(){hist();rekap()}});
+$('fn').innerHTML='<option value="">Semua nama</option>'+Object.keys(P).map(function(st){return P[st].split('|').map(function(n){return '<option>'+n+'</option>'}).join('')}).join('');
+['f1','f2','fs','fn'].forEach(function(i){$(i).onchange=function(){hist();rekap()}});
+$('rf').onclick=function(){load()};
 $('np').onclick=function(){if(API)return alert('Sandi admin diubah pada kode Apps Script (ADMIN_KEY).');var a=$('p1').value;if(a.length<4)return alert('Minimal 4 karakter');if(a!=$('p2').value)return alert('Kata sandi tidak sama');PW=hash(a);try{localStorage.setItem('pbhp_pw',PW)}catch(e){}$('p1').value=$('p2').value='';alert('Kata sandi diganti')};
-function F(){var a=$('f1').value,b=$('f2').value,c=$('fs').value;return H.filter(function(r){return(!a||r.tg>=a)&&(!b||r.tg<=b)&&(!c||r.st==c)})}
+function F(){var a=$('f1').value,b=$('f2').value,c=$('fs').value,d=$('fn').value;return H.filter(function(r){return(!a||r.tg>=a)&&(!b||r.tg<=b)&&(!c||r.st==c)&&(!d||r.nm==d)})}
 function del(i){if(adm&&confirm('Hapus permintaan ini?')){if(API){post({action:'delete',key:KEY,id:H[i].id}).then(function(){setTimeout(sync,1500)});H.splice(i,1);hist();rekap();return}H.splice(i,1);save();hist();rekap()}}
 function hist(){if(!adm){$('hist').innerHTML='';return}var L=F();$('hist').innerHTML=L.length?'<div class="mu" style="margin-bottom:6px">'+L.length+' permintaan</div><table><tr><th>Tgl</th><th>Pemohon</th><th>Barang</th><th></th></tr>'+L.map(function(r){return '<tr><td>'+r.tg+'</td><td>'+r.nm+'<br><span class="mu">'+r.st+' · '+r.nip+'</span></td><td>'+r.it.map(function(x){return x[0]+' ×'+x[1]}).join('<br>')+(r.ket?'<br><i>Ket: '+r.ket.replace(/</g,'&lt;')+'</i>':'')+'</td><td><button class="s d" onclick="del('+H.indexOf(r)+')">Hapus</button></td></tr>'}).join('')+'</table>':'<div class="mu">Belum ada permintaan.</div>'}
 function rekap(){rekapQ();if(!adm){$('rek').innerHTML='';$('rek2').innerHTML='';return}var m={},k=[];F().forEach(function(r){r.it.forEach(function(x){var o=m[x[0]]||(m[x[0]]={q:0,n:0,w:{}});o.q+=x[1];o.n++;o.w[r.nm]=1});if(r.ket)k.push(r)});
@@ -146,7 +150,7 @@ $('csv3').onclick=function(){if(!adm)return;var q=function(s){return '"'+String(
 $('prt').onclick=function(){if(adm)window.print()};
 $('csv2').onclick=function(){if(!adm)return;var q=function(s){return '"'+String(s).replace(/"/g,'""')+'"'};var o='\ufeffBarang,Total Jumlah,Jumlah Permintaan,Jumlah Pemohon\n';RK.forEach(function(r){o+=r.map(q).join(',')+'\n'});dl('rekap-barang.csv',o,'text/csv')};
 $('sv').onclick=()=>{if(!$('nip').value.trim())return alert('NIP wajib diisi');if(!Object.keys(cart).length)return alert('Pilih minimal satu barang');
-load();H.unshift({tg:$('tg').value,st:$('st').value,nm:$('nm').value,nip:$('nip').value.trim(),it:Object.entries(cart)});if(API){var rec=H.shift();$('sv').disabled=true;post(rec).then(function(){$('sv').disabled=false;reset();alert('Permintaan terkirim ke admin')}).catch(function(){$('sv').disabled=false;alert('Gagal mengirim. Periksa koneksi internet lalu coba lagi.')});return}save();hist();reset();alert('Permintaan tersimpan')};
+load();H.unshift({tg:$('tg').value,st:$('st').value,nm:$('nm').value,nip:$('nip').value.trim(),it:Object.entries(cart)});if(API){var rec=H.shift();$('sv').disabled=true;post(rec).then(function(d){$('sv').disabled=false;if(d&&d.ok){reset();alert('Permintaan terkirim ke admin')}else alert('Server menolak permintaan'+(d&&d.error?' ('+d.error+')':'')+'. Hubungi admin.')}).catch(function(){$('sv').disabled=false;alert('Gagal terhubung ke server. Periksa koneksi internet, lalu coba lagi.')});return}save();hist();reset();alert('Permintaan tersimpan')};
 function reset(){cart={};$('nip').value='';draw()}$('rs').onclick=reset;
 function dl(n,t,m){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click()}
 $('csv').onclick=()=>{const q=s=>'"'+String(s).replace(/"/g,'""')+'"';let o='\ufeffTanggal,Status,Nama,NIP,Barang,Jumlah,Keterangan\n';H.forEach(r=>{r.it.forEach(x=>o+=[r.tg,r.st,r.nm,r.nip,x[0],x[1],r.ket||''].map(q).join(',')+'\n');if(!r.it.length)o+=[r.tg,r.st,r.nm,r.nip,'','',r.ket||''].map(q).join(',')+'\n'});dl('rekap-permintaan.csv',o,'text/csv')};
